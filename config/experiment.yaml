@@ -1,0 +1,42 @@
+# =============================================================================
+#  Experiment configuration
+#
+#  This file is the single source of truth for every parameter used by the
+#  project.  Nothing in src/ may hard-code a candidate block size, an
+#  iteration count or a filesystem path.
+#
+#  Edit this file, not the Python sources, when you want to change the
+#  experiment parameters.
+# =============================================================================
+
+project:
+  name: "Adaptive CUDA Thread-Block Configuration for Workload-Aware GPU Optimization"
+
+benchmark:
+  # Legal CUDA thread-block sizes to consider.  Must be positive multiples
+  # of 32 (warp size) and must not exceed 1024.
+  candidate_block_sizes:
+    - 64
+    - 128
+    - 256
+    - 512
+
+  # Warm-up launches before any measurement is taken.  They are not timed.
+  warmup_iterations: 10
+
+  # Timed launches per repetition.  The reported metric will be an aggregate
+  # over these launches (median by default), computed in a later phase.
+  measurement_iterations: 100
+
+  # Independent repetitions of the whole (warm-up + measurement) block.
+  # Used in Phase 12 to compute dispersion statistics.
+  repetitions: 5
+
+# All paths are relative to the repository root.  They are resolved by
+# src.config.ExperimentConfig.resolve() and are therefore portable across
+# Windows and Linux / Google Colab.
+paths:
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  results: "results"
+  models: "models"

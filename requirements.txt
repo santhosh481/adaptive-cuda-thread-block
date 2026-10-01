@@ -1,0 +1,24 @@
+# ---------------------------------------------------------------------------
+# Adaptive CUDA Thread-Block Configuration - Python dependencies
+#
+# Phase 1-2 (current) only needs PyYAML and pytest.
+# The scientific stack is listed now so that the environment stays stable
+# across phases 6-13.  Nothing here is used before it is needed.
+# ---------------------------------------------------------------------------
+
+# --- configuration (Phase 1+) ---
+PyYAML>=6.0.1
+
+# --- testing (Phase 1+) ---
+pytest>=8.0.0
+
+# --- data handling (Phase 6+) ---
+numpy>=1.26.0
+pandas>=2.1.0
+
+# --- machine learning (Phase 9+) ---
+scikit-learn>=1.4.0
+xgboost>=2.0.0
+
+# --- visualisation (Phase 13+) ---
+matplotlib>=3.8.0
