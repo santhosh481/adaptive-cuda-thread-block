@@ -6,9 +6,13 @@
 #
 #  Targets
 #  -------
-#    device_query            (Phase 2)  environment / correctness probe
-#    vector_add              (Phase 3)  first workload - correctness only
-#    benchmark_vector_add    (Phase 4)  timed measurement of vector_add
+#    device_query             (Phase 2)  environment / correctness probe
+#    vector_add               (Phase 3)  workload 1 correctness
+#    benchmark_vector_add     (Phase 4)  workload 1 timing
+#    reduction                (Phase 5)  workload 2 correctness
+#    benchmark_reduction      (Phase 5)  workload 2 timing
+#    stencil                  (Phase 5)  workload 3 correctness
+#    benchmark_stencil        (Phase 5)  workload 3 timing
 #
 #  Architecture selection
 #  ----------------------
@@ -113,19 +117,31 @@ add_executable(device_query device_query.cu)
 acu_configure_cuda_target(device_query)
 
 # -----------------------------------------------------------------------------
-# vector_add  (Phase 3)
+# vector_add  (Phase 3 correctness, Phase 4 timing)
 # -----------------------------------------------------------------------------
 
 add_executable(vector_add vector_add.cu)
 acu_configure_cuda_target(vector_add)
 
-# -----------------------------------------------------------------------------
-# benchmark_vector_add  (Phase 4)
-#
-# Times the same vector_add kernel over `warmup` + `iterations` launches,
-# repeats `repetitions` times, and emits a single JSON object.  No file is
-# written; the Phase 6 experiment runner will parse stdout.
-# -----------------------------------------------------------------------------
-
 add_executable(benchmark_vector_add benchmark_vector_add.cu)
 acu_configure_cuda_target(benchmark_vector_add)
+
+# -----------------------------------------------------------------------------
+# reduction  (Phase 5)
+# -----------------------------------------------------------------------------
+
+add_executable(reduction reduction.cu)
+acu_configure_cuda_target(reduction)
+
+add_executable(benchmark_reduction benchmark_reduction.cu)
+acu_configure_cuda_target(benchmark_reduction)
+
+# -----------------------------------------------------------------------------
+# stencil  (Phase 5)
+# -----------------------------------------------------------------------------
+
+add_executable(stencil stencil.cu)
+acu_configure_cuda_target(stencil)
+
+add_executable(benchmark_stencil benchmark_stencil.cu)
+acu_configure_cuda_target(benchmark_stencil)
