@@ -6,10 +6,9 @@
 #
 #  Targets
 #  -------
-#    device_query   (Phase 2)  environment / correctness probe
-#    vector_add     (Phase 3)  first workload - correctness check only
-#
-#  Phase 4+ will add the benchmarking harness targets.
+#    device_query            (Phase 2)  environment / correctness probe
+#    vector_add              (Phase 3)  first workload - correctness only
+#    benchmark_vector_add    (Phase 4)  timed measurement of vector_add
 #
 #  Architecture selection
 #  ----------------------
@@ -52,10 +51,7 @@ function(acu_ensure_native_cuda_arch)
         return()
     endif()
 
-    # Take the first line only (multi-GPU hosts).
     string(REGEX REPLACE "[\r\n].*$" "" _acu_cc "${_acu_cc_raw}")
-
-    # nvidia-smi returns e.g. "7.5"; CMAKE_CUDA_ARCHITECTURES wants "75".
     string(REPLACE "." "" _acu_cc_nodot "${_acu_cc}")
 
     if(_acu_cc_nodot STREQUAL "")
@@ -122,3 +118,14 @@ acu_configure_cuda_target(device_query)
 
 add_executable(vector_add vector_add.cu)
 acu_configure_cuda_target(vector_add)
+
+# -----------------------------------------------------------------------------
+# benchmark_vector_add  (Phase 4)
+#
+# Times the same vector_add kernel over `warmup` + `iterations` launches,
+# repeats `repetitions` times, and emits a single JSON object.  No file is
+# written; the Phase 6 experiment runner will parse stdout.
+# -----------------------------------------------------------------------------
+
+add_executable(benchmark_vector_add benchmark_vector_add.cu)
+acu_configure_cuda_target(benchmark_vector_add)
