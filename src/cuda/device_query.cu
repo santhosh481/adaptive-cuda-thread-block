@@ -14,9 +14,9 @@
 //      2. Does a trivial kernel actually launch and complete correctly on
 //         each device?
 //
-//  It is deliberately architecture-agnostic:  it reads every hardware
-//  property from the CUDA runtime at execution time.  Nothing about a
-//  specific GPU model is compiled in.
+//  It is deliberately architecture-agnostic and version-agnostic:  every
+//  hardware property is read from the CUDA runtime at execution time, and
+//  no API that was introduced after CUDA 11.0 is used.
 //
 //  Usage:
 //      device_query           human-readable report
@@ -35,30 +35,6 @@
 #include <cstring>
 #include <string>
 #include <vector>
-
-// ---------------------------------------------------------------------------
-// Error checking
-// ---------------------------------------------------------------------------
-
-#define CUDA_CHECK_RETURN(call)                                              \
-    do {                                                                     \
-        cudaError_t _err = (call);                                           \
-        if (_err != cudaSuccess) {                                           \
-            std::fprintf(stderr, "CUDA error at %s:%d: %s\n",                \
-                         __FILE__, __LINE__, cudaGetErrorString(_err));      \
-            return 2;                                                        \
-        }                                                                    \
-    } while (0)
-
-#define CUDA_CHECK_BOOL(call)                                                \
-    do {                                                                     \
-        cudaError_t _err = (call);                                           \
-        if (_err != cudaSuccess) {                                           \
-            std::fprintf(stderr, "CUDA error at %s:%d: %s\n",                \
-                         __FILE__, __LINE__, cudaGetErrorString(_err));      \
-            return false;                                                    \
-        }                                                                    \
-    } while (0)
 
 // ---------------------------------------------------------------------------
 // Smoke-test kernel
@@ -165,26 +141,25 @@ static std::string json_escape(const std::string& s) {
     return out;
 }
 
-static std::string json_string_or_null(const std::string& s) {
-    if (s.empty()) return "null";
-    return "\"" + json_escape(s) + "\"";
-}
-
 // ---------------------------------------------------------------------------
 // Device reporting
+//
+// NOTE: the CUDA UUID (cudaDeviceGetUuid / cudaUUID_t) is intentionally NOT
+// queried.  Its availability varies across CUDA minor versions and across
+// toolchains, and none of the later phases of this project uses it.  A "uuid"
+// key is still emitted in JSON so that downstream consumers do not have to
+// change, but it is always null.
 // ---------------------------------------------------------------------------
 
 struct DeviceInfo {
     int    index = 0;
     std::string name;
-    std::string uuid;
     int    compute_capability_major = 0;
     int    compute_capability_minor = 0;
     int    multiprocessor_count = 0;
     int    max_threads_per_block = 0;
     int    max_threads_per_multiprocessor = 0;
     int    max_threads_per_block_dim[3] = {0, 0, 0};
-    int    max_block_dim[3] = {0, 0, 0};
     int    max_grid_dim[3] = {0, 0, 0};
     int    warp_size = 0;
     int    registers_per_block = 0;
@@ -218,7 +193,7 @@ static bool query_device(int index, DeviceInfo& out) {
     out.max_threads_per_multiprocessor = prop.maxThreadsPerMultiProcessor;
     for (int i = 0; i < 3; ++i) {
         out.max_threads_per_block_dim[i] = prop.maxThreadsDim[i];
-        out.max_block_dim[i] = prop.maxGridSize[i];
+        out.max_grid_dim[i] = prop.maxGridSize[i];
     }
     out.warp_size = prop.warpSize;
     out.registers_per_block = prop.regsPerBlock;
@@ -233,34 +208,6 @@ static bool query_device(int index, DeviceInfo& out) {
     out.clock_rate_khz = prop.clockRate;
     out.unified_addressing = prop.unifiedAddressing != 0;
     out.concurrent_kernels = prop.concurrentKernels != 0;
-
-    // UUID (device 0 only reports a meaningful value on some drivers; if
-    // the runtime refuses, we simply leave it empty and the JSON printer
-    // emits "null").
-    cudaUUID_t uuid{};
-    if (cudaDeviceGetUuid(&uuid, index) == cudaSuccess) {
-        char buf[64];
-        std::snprintf(buf, sizeof(buf),
-                      "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-"
-                      "%02x%02x%02x%02x%02x%02x",
-                      static_cast<unsigned char>(uuid.bytes[0]),
-                      static_cast<unsigned char>(uuid.bytes[1]),
-                      static_cast<unsigned char>(uuid.bytes[2]),
-                      static_cast<unsigned char>(uuid.bytes[3]),
-                      static_cast<unsigned char>(uuid.bytes[4]),
-                      static_cast<unsigned char>(uuid.bytes[5]),
-                      static_cast<unsigned char>(uuid.bytes[6]),
-                      static_cast<unsigned char>(uuid.bytes[7]),
-                      static_cast<unsigned char>(uuid.bytes[8]),
-                      static_cast<unsigned char>(uuid.bytes[9]),
-                      static_cast<unsigned char>(uuid.bytes[10]),
-                      static_cast<unsigned char>(uuid.bytes[11]),
-                      static_cast<unsigned char>(uuid.bytes[12]),
-                      static_cast<unsigned char>(uuid.bytes[13]),
-                      static_cast<unsigned char>(uuid.bytes[14]),
-                      static_cast<unsigned char>(uuid.bytes[15]));
-        out.uuid = buf;
-    }
 
     out.kernel_smoke_test = run_kernel_smoke_test(index, out.kernel_smoke_test_message);
     return true;
@@ -285,8 +232,6 @@ static void print_human_report(const std::vector<DeviceInfo>& devices,
         std::printf("-------------------------------------------------------------\n");
         std::printf(" Device %d: %s\n", d.index, d.name.c_str());
         std::printf("-------------------------------------------------------------\n");
-        std::printf("  UUID                          : %s\n",
-                    d.uuid.empty() ? "(unavailable)" : d.uuid.c_str());
         std::printf("  Compute capability            : %d.%d\n",
                     d.compute_capability_major, d.compute_capability_minor);
         std::printf("  Multiprocessors (SMs)         : %d\n", d.multiprocessor_count);
@@ -298,7 +243,7 @@ static void print_human_report(const std::vector<DeviceInfo>& devices,
                     d.max_threads_per_block_dim[1],
                     d.max_threads_per_block_dim[2]);
         std::printf("  Max grid size                : (%d, %d, %d)\n",
-                    d.max_block_dim[0], d.max_block_dim[1], d.max_block_dim[2]);
+                    d.max_grid_dim[0], d.max_grid_dim[1], d.max_grid_dim[2]);
         std::printf("  Registers per block           : %d\n", d.registers_per_block);
         std::printf("  Registers per SM              : %d\n", d.registers_per_multiprocessor);
         std::printf("  Shared memory per block       : %zu bytes\n", d.shared_memory_per_block);
@@ -337,7 +282,7 @@ static void print_json_report(const std::vector<DeviceInfo>& devices,
         std::printf("    {\n");
         std::printf("      \"index\": %d,\n", d.index);
         std::printf("      \"name\": \"%s\",\n", json_escape(d.name).c_str());
-        std::printf("      \"uuid\": %s,\n", json_string_or_null(d.uuid).c_str());
+        std::printf("      \"uuid\": null,\n");
         std::printf("      \"compute_capability\": \"%d.%d\",\n",
                     d.compute_capability_major, d.compute_capability_minor);
         std::printf("      \"multiprocessor_count\": %d,\n", d.multiprocessor_count);
@@ -350,7 +295,7 @@ static void print_json_report(const std::vector<DeviceInfo>& devices,
                     d.max_threads_per_block_dim[1],
                     d.max_threads_per_block_dim[2]);
         std::printf("      \"max_grid_size\": [%d, %d, %d],\n",
-                    d.max_block_dim[0], d.max_block_dim[1], d.max_block_dim[2]);
+                    d.max_grid_dim[0], d.max_grid_dim[1], d.max_grid_dim[2]);
         std::printf("      \"registers_per_block\": %d,\n", d.registers_per_block);
         std::printf("      \"registers_per_multiprocessor\": %d,\n",
                     d.registers_per_multiprocessor);
